@@ -313,6 +313,105 @@
             padding: 20px;
             font-size: 0.85rem;
         }
+
+        /* 커플 코드 연결 화면 */
+        .connect-screen {
+            position: fixed;
+            inset: 0;
+            background: #fdf2f8;
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .connect-screen.hidden { display: none; }
+        .connect-box {
+            background: white;
+            border-radius: 24px;
+            padding: 32px 28px;
+            width: 90%;
+            max-width: 380px;
+            box-shadow: 0 8px 30px rgba(236,72,153,0.15);
+            text-align: center;
+        }
+        .connect-box h2 {
+            font-size: 1.3rem;
+            color: #831843;
+            margin-bottom: 8px;
+        }
+        .connect-box p {
+            font-size: 0.85rem;
+            color: #9ca3af;
+            margin-bottom: 20px;
+        }
+        .connect-box input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #fce7f3;
+            border-radius: 14px;
+            font-size: 1.1rem;
+            text-align: center;
+            letter-spacing: 4px;
+            font-weight: 700;
+            color: #831843;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .connect-box input:focus { border-color: #ec4899; }
+        .connect-box input::placeholder { letter-spacing: 1px; font-weight: 400; color: #d1d5db; }
+        .connect-btns {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 18px;
+        }
+        .connect-btns button {
+            padding: 14px;
+            border: none;
+            border-radius: 14px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-connect {
+            background: linear-gradient(135deg, #ec4899, #f43f5e);
+            color: white;
+        }
+        .btn-connect:hover { opacity: 0.9; }
+        .btn-generate {
+            background: #fce7f3;
+            color: #ec4899;
+        }
+        .btn-generate:hover { background: #fbcfe8; }
+        .connect-error {
+            color: #f43f5e;
+            font-size: 0.8rem;
+            margin-top: 8px;
+            min-height: 20px;
+        }
+        .sync-status {
+            position: fixed;
+            top: 60px;
+            right: 12px;
+            font-size: 0.7rem;
+            padding: 4px 10px;
+            border-radius: 8px;
+            background: #d1fae5;
+            color: #065f46;
+            z-index: 50;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .sync-status.visible { opacity: 1; }
+        .couple-code-display {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            text-align: center;
+            margin-top: 8px;
+            cursor: pointer;
+        }
+        .couple-code-display:hover { color: #ec4899; }
         .cycle-input {
             display: flex;
             align-items: center;
@@ -331,6 +430,23 @@
     </style>
 </head>
 <body>
+    <!-- 커플 코드 연결 화면 -->
+    <div class="connect-screen" id="connectScreen">
+        <div class="connect-box">
+            <h2>커플 연결</h2>
+            <p>두 사람이 같은 코드를 입력하면<br>데이터가 실시간으로 공유됩니다</p>
+            <input type="text" id="coupleCodeInput" placeholder="4자리 코드 입력" maxlength="4">
+            <div class="connect-error" id="connectError"></div>
+            <div class="connect-btns">
+                <button class="btn-connect" id="btnConnect">연결하기</button>
+                <button class="btn-generate" id="btnGenerate">새 코드 만들기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 동기화 상태 표시 -->
+    <div class="sync-status" id="syncStatus">동기화 완료 ✓</div>
+
     <header>생리 주기 관리</header>
     <div class="container">
         <!-- 달력 네비게이션 -->
@@ -396,6 +512,9 @@
             <h3>최근 기록</h3>
             <div id="recordsList"></div>
         </div>
+
+        <!-- 커플 코드 표시 -->
+        <div class="couple-code-display" id="coupleCodeDisplay" title="탭하면 연결 해제"></div>
     </div>
 
     <!-- 성관계 기록 모달 -->
@@ -417,11 +536,137 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue, get } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBFoVavSHTgUCnqhRQGwuS31GEqj_Ao_Tc",
+        authDomain: "period-tracker-8311c.firebaseapp.com",
+        databaseURL: "https://period-tracker-8311c-default-rtdb.firebaseio.com",
+        projectId: "period-tracker-8311c",
+        storageBucket: "period-tracker-8311c.firebasestorage.app",
+        messagingSenderId: "248333617446",
+        appId: "1:248333617446:web:342099ba99add5561cd9e7",
+        measurementId: "G-E66ESDDLP2"
+    };
+
+    const fbApp = initializeApp(firebaseConfig);
+    const db = getDatabase(fbApp);
+
     (function() {
+        // --- Firebase 동기화 ---
+        const COUPLE_KEY = 'coupleCode';
+        let coupleCode = localStorage.getItem(COUPLE_KEY);
+        let dbRef = null;
+        let isSyncing = false; // Firebase에서 받은 데이터 업데이트 중인지 플래그
+
+        function showSyncStatus(msg) {
+            const el = document.getElementById('syncStatus');
+            el.textContent = msg;
+            el.classList.add('visible');
+            setTimeout(() => el.classList.remove('visible'), 2000);
+        }
+
+        function generateCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+            return code;
+        }
+
+        function startFirebaseSync() {
+            if (!coupleCode) return;
+            dbRef = ref(db, 'couples/' + coupleCode);
+
+            // 실시간 리스너 — 상대방 변경사항 자동 반영
+            onValue(dbRef, (snapshot) => {
+                const val = snapshot.val();
+                if (val) {
+                    isSyncing = true;
+                    data = {
+                        cycleLength: val.cycleLength || 28,
+                        periodDuration: val.periodDuration || 5,
+                        periods: val.periods || [],
+                        sexRecords: val.sexRecords || []
+                    };
+                    // localStorage에도 캐시
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                    document.getElementById('cycleLength').value = data.cycleLength;
+                    document.getElementById('periodDuration').value = data.periodDuration;
+                    renderCalendar();
+                    showSyncStatus('동기화 완료 ✓');
+                    isSyncing = false;
+                }
+            });
+
+            // 커플 코드 표시
+            document.getElementById('coupleCodeDisplay').textContent = '커플 코드: ' + coupleCode + ' (탭하면 해제)';
+        }
+
+        function saveToFirebase() {
+            if (!dbRef || isSyncing) return;
+            set(dbRef, {
+                cycleLength: data.cycleLength,
+                periodDuration: data.periodDuration,
+                periods: data.periods,
+                sexRecords: data.sexRecords
+            });
+        }
+
+        // --- 커플 코드 연결 화면 ---
+        const connectScreen = document.getElementById('connectScreen');
+
+        if (coupleCode) {
+            connectScreen.classList.add('hidden');
+            startFirebaseSync();
+        }
+
+        document.getElementById('btnGenerate').addEventListener('click', () => {
+            const code = generateCode();
+            document.getElementById('coupleCodeInput').value = code;
+        });
+
+        document.getElementById('btnConnect').addEventListener('click', async () => {
+            const input = document.getElementById('coupleCodeInput').value.trim().toUpperCase();
+            const errorEl = document.getElementById('connectError');
+            if (input.length < 4) {
+                errorEl.textContent = '코드를 4자 이상 입력해주세요.';
+                return;
+            }
+            errorEl.textContent = '';
+            coupleCode = input;
+            localStorage.setItem(COUPLE_KEY, coupleCode);
+
+            // 기존 데이터가 Firebase에 있으면 불러오고, 없으면 현재 로컬 데이터 업로드
+            dbRef = ref(db, 'couples/' + coupleCode);
+            const snapshot = await get(dbRef);
+            if (snapshot.exists()) {
+                data = snapshot.val();
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            } else {
+                saveToFirebase();
+            }
+
+            connectScreen.classList.add('hidden');
+            startFirebaseSync();
+            renderCalendar();
+        });
+
+        // 커플 코드 표시 클릭 → 연결 해제
+        document.getElementById('coupleCodeDisplay').addEventListener('click', () => {
+            if (confirm('커플 연결을 해제하시겠습니까?\n로컬 데이터는 유지됩니다.')) {
+                localStorage.removeItem(COUPLE_KEY);
+                coupleCode = null;
+                dbRef = null;
+                document.getElementById('coupleCodeDisplay').textContent = '';
+                connectScreen.classList.remove('hidden');
+            }
+        });
+
         // --- 공휴일 API ---
         const HOLIDAY_API_KEY = '894fc66c993fd72894cdc8eef42a41ddaab553541aa603b7deab9f227227bfbc';
-        const holidayCache = {}; // 'YYYY-MM' -> { 'YYYY-MM-DD': '공휴일명', ... }
+        const holidayCache = {};
 
         async function fetchHolidays(year, month) {
             const key = `${year}-${String(month + 1).padStart(2, '0')}`;
@@ -461,13 +706,14 @@
             return saved ? JSON.parse(saved) : {
                 cycleLength: 28,
                 periodDuration: 5,
-                periods: [],   // [{ start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' }]
-                sexRecords: [] // [{ date: 'YYYY-MM-DD', method: '...', memo: '...' }]
+                periods: [],
+                sexRecords: []
             };
         }
 
         function saveData() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            saveToFirebase();
         }
 
         function fmt(d) {
@@ -883,8 +1129,7 @@
         document.getElementById('periodDuration').value = data.periodDuration || 5;
         renderCalendar();
     })();
-    </script>
-    <script>
+
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js');
     }
