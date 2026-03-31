@@ -1,4 +1,4 @@
-const CACHE_NAME = 'uri-calendar-v1';
+const CACHE_NAME = 'uri-calendar-v2';
 const ASSETS = [
   './',
   './index.html',
