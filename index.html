@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>생리 주기 관리</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+            background: #fdf2f8;
+            color: #333;
+            min-height: 100vh;
+        }
+        header {
+            background: linear-gradient(135deg, #ec4899, #f43f5e);
+            color: white;
+            padding: 16px 24px;
+            text-align: center;
+            font-size: 1.3rem;
+            font-weight: 700;
+            box-shadow: 0 2px 8px rgba(236,72,153,0.3);
+        }
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        /* 달력 네비게이션 */
+        .cal-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .cal-nav button {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 1rem;
+            cursor: pointer;
+            color: #ec4899;
+            font-weight: 600;
+        }
+        .cal-nav button:hover { background: #fce7f3; }
+        .cal-nav .month-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #831843;
+        }
+
+        /* 달력 */
+        .calendar {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            margin-bottom: 16px;
+        }
+        .weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+            font-size: 0.8rem;
+            color: #9ca3af;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .weekdays span:first-child { color: #f43f5e; }
+        .days {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 2px;
+        }
+        .day {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.15s;
+        }
+        .day:hover { background: #fce7f3; }
+        .day.today { font-weight: 800; outline: 2px solid #ec4899; outline-offset: -2px; }
+        .day.empty { cursor: default; }
+        .day.empty:hover { background: transparent; }
+        .day.period { background: #fecdd3; color: #be123c; font-weight: 600; }
+        .day.predicted-period { background: #fce7f3; color: #f43f5e; border: 1.5px dashed #f9a8d4; }
+        .day.ovulation { background: #dbeafe; color: #1d4ed8; font-weight: 600; }
+        .day.fertile-low { background: #e0f2fe; color: #0369a1; border: 1.5px dashed #bae6fd; }
+        .day.fertile-mid { background: #bae6fd; color: #0c4a6e; border: 1.5px dashed #7dd3fc; }
+        .day.fertile-high { background: #7dd3fc; color: #0c4a6e; font-weight: 600; border: 1.5px dashed #38bdf8; }
+        .day.fertile-peak { background: #38bdf8; color: #fff; font-weight: 700; }
+        .day .sex-count {
+            font-size: 0.55rem;
+            font-weight: 700;
+            color: #fff;
+            background: #f59e0b;
+            border-radius: 50%;
+            width: 14px; height: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            bottom: 2px;
+            line-height: 1;
+        }
+        .day.selected { outline: 2px solid #333; outline-offset: -2px; }
+        .day.sun { color: #f43f5e; }
+        .day.holiday { color: #f43f5e; font-weight: 700; }
+        .day .holiday-name {
+            font-size: 0.45rem;
+            color: #f43f5e;
+            line-height: 1;
+            margin-top: 1px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+
+        /* 범례 */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 16px;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .legend-dot {
+            width: 12px; height: 12px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        /* 정보 패널 */
+        .info-panel {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            margin-bottom: 16px;
+        }
+        .info-panel h3 {
+            font-size: 0.95rem;
+            color: #831843;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #fce7f3;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            font-size: 0.88rem;
+        }
+        .info-row .label { color: #6b7280; }
+        .info-row .value { font-weight: 600; color: #111827; }
+
+        /* 선택된 날짜 패널 */
+        .selected-panel {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            margin-bottom: 16px;
+        }
+        .selected-panel h3 {
+            font-size: 0.95rem;
+            color: #831843;
+            margin-bottom: 14px;
+        }
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.88rem;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.15s;
+        }
+        .btn-period-start { background: #fecdd3; color: #be123c; }
+        .btn-period-start:hover { background: #fda4af; }
+        .btn-period-end { background: #fed7aa; color: #c2410c; }
+        .btn-period-end:hover { background: #fdba74; }
+        .btn-sex { background: #fef08a; color: #a16207; }
+        .btn-sex:hover { background: #fde047; }
+        .btn-delete { background: #f3f4f6; color: #6b7280; }
+        .btn-delete:hover { background: #e5e7eb; }
+
+        /* 성관계 모달 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            width: 90%;
+            max-width: 360px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+        }
+        .modal h3 {
+            font-size: 1rem;
+            margin-bottom: 16px;
+            color: #831843;
+        }
+        .modal label {
+            display: block;
+            font-size: 0.85rem;
+            color: #6b7280;
+            margin-bottom: 6px;
+            margin-top: 12px;
+        }
+        .modal select, .modal input[type="number"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            background: #fafafa;
+        }
+        .modal-btns {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .modal-btns .btn { flex: 1; text-align: center; }
+        .btn-confirm { background: #ec4899; color: white; }
+        .btn-confirm:hover { background: #db2777; }
+        .btn-cancel { background: #f3f4f6; color: #6b7280; }
+
+        /* 기록 리스트 */
+        .records {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            margin-bottom: 16px;
+        }
+        .records h3 {
+            font-size: 0.95rem;
+            color: #831843;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #fce7f3;
+        }
+        .record-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f9fafb;
+            font-size: 0.85rem;
+        }
+        .record-item:last-child { border-bottom: none; }
+        .record-date { color: #6b7280; min-width: 90px; }
+        .record-info { flex: 1; margin-left: 8px; }
+        .record-del {
+            background: none;
+            border: none;
+            color: #d1d5db;
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 4px;
+        }
+        .record-del:hover { color: #f43f5e; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-period { background: #fecdd3; color: #be123c; }
+        .badge-sex { background: #fef08a; color: #a16207; }
+
+        .empty-state {
+            text-align: center;
+            color: #9ca3af;
+            padding: 20px;
+            font-size: 0.85rem;
+        }
+        .cycle-input {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .cycle-input input {
+            width: 60px;
+            padding: 6px 8px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        .cycle-input span { font-size: 0.85rem; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <header>생리 주기 관리</header>
+    <div class="container">
+        <!-- 달력 네비게이션 -->
+        <div class="cal-nav">
+            <button id="prevMonth">&lt;</button>
+            <span class="month-title" id="monthTitle"></span>
+            <button id="nextMonth">&gt;</button>
+        </div>
+
+        <!-- 달력 -->
+        <div class="calendar">
+            <div class="weekdays">
+                <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+            </div>
+            <div class="days" id="calendarDays"></div>
+        </div>
+
+        <!-- 범례 -->
+        <div class="legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#fecdd3"></div>생리</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#fce7f3;border:1.5px dashed #f9a8d4"></div>생리 예정</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#e0f2fe;border:1.5px dashed #bae6fd"></div>임신 가능(낮음)</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#bae6fd;border:1.5px dashed #7dd3fc"></div>임신 가능(중간)</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#7dd3fc;border:1.5px dashed #38bdf8"></div>임신 가능(높음)</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#38bdf8"></div>배란일(최고)</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#fef08a;border-radius:50%"></div>성관계</div>
+        </div>
+
+        <!-- 주기 설정 -->
+        <div class="info-panel">
+            <h3>주기 설정</h3>
+            <div class="cycle-input">
+                <span>평균 생리 주기</span>
+                <input type="number" id="cycleLength" value="28" min="20" max="45">
+                <span>일</span>
+            </div>
+            <div class="cycle-input" style="margin-top:10px">
+                <span>평균 생리 기간</span>
+                <input type="number" id="periodDuration" value="5" min="2" max="10">
+                <span>일</span>
+            </div>
+        </div>
+
+        <!-- 예측 정보 -->
+        <div class="info-panel" id="predictionInfo" style="display:none">
+            <h3>예측 정보</h3>
+            <div id="predictionContent"></div>
+        </div>
+
+        <!-- 선택된 날짜 액션 -->
+        <div class="selected-panel" id="selectedPanel" style="display:none">
+            <h3 id="selectedTitle"></h3>
+            <div class="btn-group">
+                <button class="btn btn-period-start" id="btnPeriodStart">생리 시작일로 기록</button>
+                <button class="btn btn-period-end" id="btnPeriodEnd">생리 종료일로 기록</button>
+                <button class="btn btn-sex" id="btnSex">성관계 기록</button>
+                <button class="btn btn-delete" id="btnDeleteDay">기록 초기화</button>
+            </div>
+        </div>
+
+        <!-- 최근 기록 -->
+        <div class="records">
+            <h3>최근 기록</h3>
+            <div id="recordsList"></div>
+        </div>
+    </div>
+
+    <!-- 성관계 기록 모달 -->
+    <div class="modal-overlay" id="sexModal">
+        <div class="modal">
+            <h3>성관계 기록</h3>
+            <label>피임 방법</label>
+            <select id="contraceptionMethod">
+                <option value="관계 안함">관계 안함</option>
+                <option value="질내사정">질내사정</option>
+                <option value="질외사정">질외사정</option>
+                <option value="콘돔" selected>콘돔</option>
+            </select>
+
+            <div class="modal-btns">
+                <button class="btn btn-cancel" id="btnSexCancel">취소</button>
+                <button class="btn btn-confirm" id="btnSexConfirm">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // --- 공휴일 API ---
+        const HOLIDAY_API_KEY = '894fc66c993fd72894cdc8eef42a41ddaab553541aa603b7deab9f227227bfbc';
+        const holidayCache = {}; // 'YYYY-MM' -> { 'YYYY-MM-DD': '공휴일명', ... }
+
+        async function fetchHolidays(year, month) {
+            const key = `${year}-${String(month + 1).padStart(2, '0')}`;
+            if (holidayCache[key]) return holidayCache[key];
+
+            const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?solYear=${year}&solMonth=${String(month + 1).padStart(2, '0')}&ServiceKey=${HOLIDAY_API_KEY}&_type=json&numOfRows=50`;
+
+            try {
+                const res = await fetch(url);
+                const json = await res.json();
+                const items = json?.response?.body?.items?.item;
+                const holidays = {};
+                if (items) {
+                    const list = Array.isArray(items) ? items : [items];
+                    list.forEach(item => {
+                        const locdate = String(item.locdate);
+                        const dateStr = `${locdate.slice(0,4)}-${locdate.slice(4,6)}-${locdate.slice(6,8)}`;
+                        holidays[dateStr] = item.dateName;
+                    });
+                }
+                holidayCache[key] = holidays;
+                return holidays;
+            } catch (e) {
+                holidayCache[key] = {};
+                return {};
+            }
+        }
+
+        // --- 데이터 ---
+        const STORAGE_KEY = 'periodTracker';
+        let data = loadData();
+        let currentYear, currentMonth;
+        let selectedDate = null;
+
+        function loadData() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            return saved ? JSON.parse(saved) : {
+                cycleLength: 28,
+                periodDuration: 5,
+                periods: [],   // [{ start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' }]
+                sexRecords: [] // [{ date: 'YYYY-MM-DD', method: '...', memo: '...' }]
+            };
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        function fmt(d) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${dd}`;
+        }
+
+        function parseDate(s) {
+            const [y, m, d] = s.split('-').map(Number);
+            return new Date(y, m - 1, d);
+        }
+
+        function addDays(dateStr, n) {
+            const d = parseDate(dateStr);
+            d.setDate(d.getDate() + n);
+            return fmt(d);
+        }
+
+        function daysBetween(a, b) {
+            return Math.round((parseDate(b) - parseDate(a)) / 86400000);
+        }
+
+        // --- 생리 기간 날짜 집합 ---
+        function getPeriodDates() {
+            const dates = new Set();
+            data.periods.forEach(p => {
+                if (p.start && p.end) {
+                    let cur = p.start;
+                    while (cur <= p.end) {
+                        dates.add(cur);
+                        cur = addDays(cur, 1);
+                    }
+                } else if (p.start) {
+                    dates.add(p.start);
+                }
+            });
+            return dates;
+        }
+
+        // --- 가중 이동 평균 주기 계산 ---
+        function getWeightedCycleLength(sortedPeriods) {
+            // 연속된 생리 시작일 간의 간격(주기)을 계산
+            const cycles = [];
+            for (let i = 1; i < sortedPeriods.length; i++) {
+                const gap = daysBetween(sortedPeriods[i - 1].start, sortedPeriods[i].start);
+                if (gap > 0 && gap <= 90) { // 비정상적으로 긴 간격은 제외
+                    cycles.push(gap);
+                }
+            }
+
+            // 데이터 없음: 기본 28일
+            if (cycles.length === 0) return 28;
+            // 데이터 1개: 그 주기 그대로 사용
+            if (cycles.length === 1) return cycles[0];
+
+            // 2개 이상: 가중 이동 평균 (최근 주기에 더 높은 비중)
+            // 가중치: 1, 2, 3, ..., n (최근일수록 큰 값)
+            let weightedSum = 0;
+            let weightTotal = 0;
+            for (let i = 0; i < cycles.length; i++) {
+                const weight = i + 1; // 오래된 것 = 1, 최근 것 = n
+                weightedSum += cycles[i] * weight;
+                weightTotal += weight;
+            }
+            return Math.round(weightedSum / weightTotal);
+        }
+
+        // --- 가중 이동 평균 생리 기간 계산 ---
+        function getWeightedPeriodDuration(sortedPeriods) {
+            // 시작일과 종료일이 모두 있는 기록에서 기간 추출
+            const durations = [];
+            for (let i = 0; i < sortedPeriods.length; i++) {
+                const p = sortedPeriods[i];
+                if (p.start && p.end) {
+                    const dur = daysBetween(p.start, p.end) + 1;
+                    if (dur > 0 && dur <= 15) { // 비정상적으로 긴 기간은 제외
+                        durations.push(dur);
+                    }
+                }
+            }
+
+            // 데이터 없음: 기본 5일
+            if (durations.length === 0) return 5;
+            // 데이터 1개: 그 기간 그대로 사용
+            if (durations.length === 1) return durations[0];
+
+            // 2개 이상: 가중 이동 평균 (최근 기간에 더 높은 비중)
+            let weightedSum = 0;
+            let weightTotal = 0;
+            for (let i = 0; i < durations.length; i++) {
+                const weight = i + 1;
+                weightedSum += durations[i] * weight;
+                weightTotal += weight;
+            }
+            return Math.round(weightedSum / weightTotal);
+        }
+
+        // --- 예측 계산 ---
+        function getPredictions() {
+            const sorted = [...data.periods].filter(p => p.start).sort((a, b) => a.start.localeCompare(b.start));
+            if (sorted.length === 0) return { nextPeriod: null, nextOvulation: null, predictedPeriodDates: new Set(), fertileDates: new Map(), calculatedCycleLength: 28, calculatedPeriodDuration: 5 };
+
+            const last = sorted[sorted.length - 1];
+            const cycleLen = getWeightedCycleLength(sorted);
+            const periodDur = getWeightedPeriodDuration(sorted);
+
+            // 다음 3회 예측
+            const predictedPeriodDates = new Set();
+            const fertileDates = new Map(); // date -> 'low' | 'mid' | 'high' | 'peak'
+            let nextPeriod = null;
+            let nextOvulation = null;
+
+            // 위험도 매핑: 배란일 기준 오프셋 -> 등급
+            const fertilityLevel = { '-5': 'low', '-4': 'mid', '-3': 'mid', '-2': 'high', '-1': 'high', '0': 'peak', '1': 'low' };
+
+            for (let i = 1; i <= 3; i++) {
+                const predStart = addDays(last.start, cycleLen * i);
+                if (i === 1) nextPeriod = predStart;
+
+                for (let d = 0; d < periodDur; d++) {
+                    predictedPeriodDates.add(addDays(predStart, d));
+                }
+
+                // 배란일: 다음 생리 시작 14일 전
+                const ovDate = addDays(predStart, -14);
+                if (i === 1) nextOvulation = ovDate;
+                // 임신 가능 기간: 배란일 -5 ~ +1 (총 7일)
+                for (let d = -5; d <= 1; d++) {
+                    const fDate = addDays(ovDate, d);
+                    fertileDates.set(fDate, fertilityLevel[String(d)]);
+                }
+            }
+
+            // 이미 기록된 생리 기간은 예측에서 제거
+            const actualDates = getPeriodDates();
+            actualDates.forEach(d => {
+                predictedPeriodDates.delete(d);
+                fertileDates.delete(d);
+            });
+
+            return { nextPeriod, nextOvulation, predictedPeriodDates, fertileDates, calculatedCycleLength: cycleLen, calculatedPeriodDuration: periodDur };
+        }
+
+        // --- 달력 렌더링 ---
+        async function renderCalendar() {
+            const titleEl = document.getElementById('monthTitle');
+            const daysEl = document.getElementById('calendarDays');
+            titleEl.textContent = `${currentYear}년 ${currentMonth + 1}월`;
+
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const lastDate = new Date(currentYear, currentMonth + 1, 0).getDate();
+            const today = fmt(new Date());
+
+            const periodDates = getPeriodDates();
+            const predictions = getPredictions();
+            const holidays = await fetchHolidays(currentYear, currentMonth);
+            const sexCounts = new Map();
+            data.sexRecords.forEach(r => {
+                sexCounts.set(r.date, (sexCounts.get(r.date) || 0) + 1);
+            });
+
+            let html = '';
+
+            // 빈 칸
+            for (let i = 0; i < firstDay; i++) {
+                html += '<div class="day empty"></div>';
+            }
+
+            for (let d = 1; d <= lastDate; d++) {
+                const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const dayOfWeek = new Date(currentYear, currentMonth, d).getDay();
+
+                let classes = ['day'];
+                if (dateStr === today) classes.push('today');
+                if (dateStr === selectedDate) classes.push('selected');
+                if (dayOfWeek === 0) classes.push('sun');
+                if (holidays[dateStr]) classes.push('holiday');
+
+                if (periodDates.has(dateStr)) {
+                    classes.push('period');
+                } else if (predictions.fertileDates.has(dateStr)) {
+                    const level = predictions.fertileDates.get(dateStr);
+                    classes.push(`fertile-${level}`);
+                } else if (predictions.predictedPeriodDates.has(dateStr)) {
+                    classes.push('predicted-period');
+                }
+
+                const sexCount = sexCounts.get(dateStr) || 0;
+                const sexBadge = sexCount > 0 ? `<span class="sex-count">${sexCount}</span>` : '';
+                const holidayLabel = holidays[dateStr] ? `<span class="holiday-name">${holidays[dateStr]}</span>` : '';
+
+                html += `<div class="${classes.join(' ')}" data-date="${dateStr}">${d}${holidayLabel}${sexBadge}</div>`;
+            }
+
+            daysEl.innerHTML = html;
+
+            // 날짜 클릭 이벤트
+            daysEl.querySelectorAll('.day:not(.empty)').forEach(el => {
+                el.addEventListener('click', () => {
+                    selectedDate = el.dataset.date;
+                    renderCalendar();
+                    showSelectedPanel();
+                });
+            });
+
+            renderPredictionInfo(predictions);
+            renderRecords();
+        }
+
+        function showSelectedPanel() {
+            const panel = document.getElementById('selectedPanel');
+            const title = document.getElementById('selectedTitle');
+            if (!selectedDate) {
+                panel.style.display = 'none';
+                return;
+            }
+            panel.style.display = 'block';
+            const d = parseDate(selectedDate);
+            title.textContent = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+
+            // 진행 중인 생리(start만 있고 end 없음)가 있는지 확인
+            const openPeriod = data.periods.find(p => p.start && !p.end);
+            const btnEnd = document.getElementById('btnPeriodEnd');
+            if (openPeriod) {
+                btnEnd.style.display = 'block';
+            } else {
+                btnEnd.style.display = 'none';
+            }
+        }
+
+        function renderPredictionInfo(predictions) {
+            const panel = document.getElementById('predictionInfo');
+            const content = document.getElementById('predictionContent');
+
+            if (!predictions.nextPeriod) {
+                panel.style.display = 'none';
+                return;
+            }
+
+            panel.style.display = 'block';
+            const np = parseDate(predictions.nextPeriod);
+            const no = parseDate(predictions.nextOvulation);
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const daysUntilPeriod = Math.round((np - today) / 86400000);
+            const daysUntilOvulation = Math.round((no - today) / 86400000);
+
+            let periodLabel = daysUntilPeriod > 0 ? `${daysUntilPeriod}일 후` : daysUntilPeriod === 0 ? '오늘' : `${Math.abs(daysUntilPeriod)}일 지남`;
+            let ovLabel = daysUntilOvulation > 0 ? `${daysUntilOvulation}일 후` : daysUntilOvulation === 0 ? '오늘' : `${Math.abs(daysUntilOvulation)}일 지남`;
+
+            content.innerHTML = `
+                <div class="info-row"><span class="label">다음 생리 예정일</span><span class="value">${np.getMonth()+1}/${np.getDate()} (${periodLabel})</span></div>
+                <div class="info-row"><span class="label">다음 배란 예정일</span><span class="value">${no.getMonth()+1}/${no.getDate()} (${ovLabel})</span></div>
+                <div class="info-row"><span class="label">예측 주기 (가중평균)</span><span class="value">${predictions.calculatedCycleLength}일</span></div>
+                <div class="info-row"><span class="label">예측 기간 (가중평균)</span><span class="value">${predictions.calculatedPeriodDuration}일</span></div>
+            `;
+        }
+
+        function renderRecords() {
+            const list = document.getElementById('recordsList');
+
+            // 생리 기록 + 성관계 기록 합쳐서 날짜순 정렬
+            let items = [];
+            data.periods.forEach((p, i) => {
+                const startD = parseDate(p.start);
+                let text = `생리 ${startD.getMonth()+1}/${startD.getDate()}`;
+                if (p.end) {
+                    const endD = parseDate(p.end);
+                    text += ` ~ ${endD.getMonth()+1}/${endD.getDate()} (${daysBetween(p.start, p.end) + 1}일간)`;
+                } else {
+                    text += ' ~ 진행 중';
+                }
+                items.push({ date: p.start, type: 'period', text, index: i });
+            });
+            data.sexRecords.forEach((r, i) => {
+                const d = parseDate(r.date);
+                let text = `${r.method}`;
+                items.push({ date: r.date, type: 'sex', text, index: i, dateLabel: `${d.getMonth()+1}/${d.getDate()}` });
+            });
+
+            items.sort((a, b) => b.date.localeCompare(a.date));
+
+            if (items.length === 0) {
+                list.innerHTML = '<div class="empty-state">아직 기록이 없습니다.<br>날짜를 선택하여 기록을 시작하세요.</div>';
+                return;
+            }
+
+            list.innerHTML = items.slice(0, 20).map(item => {
+                const badge = item.type === 'period' ? '<span class="badge badge-period">생리</span>' : '<span class="badge badge-sex">성관계</span>';
+                const dateLabel = item.type === 'sex' ? item.dateLabel : '';
+                return `<div class="record-item">
+                    <span class="record-date">${dateLabel} ${badge}</span>
+                    <span class="record-info">${item.text}</span>
+                    <button class="record-del" data-type="${item.type}" data-index="${item.index}">&times;</button>
+                </div>`;
+            }).join('');
+
+            list.querySelectorAll('.record-del').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const type = btn.dataset.type;
+                    const idx = parseInt(btn.dataset.index);
+                    if (type === 'period') {
+                        data.periods.splice(idx, 1);
+                    } else {
+                        data.sexRecords.splice(idx, 1);
+                    }
+                    saveData();
+                    renderCalendar();
+                });
+            });
+        }
+
+        // --- 이벤트 ---
+        document.getElementById('prevMonth').addEventListener('click', () => {
+            currentMonth--;
+            if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+            renderCalendar();
+        });
+        document.getElementById('nextMonth').addEventListener('click', () => {
+            currentMonth++;
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+            renderCalendar();
+        });
+
+        // 생리 시작
+        document.getElementById('btnPeriodStart').addEventListener('click', () => {
+            if (!selectedDate) return;
+            // 이미 시작된 진행 중 생리가 있으면 자동 종료
+            const openIdx = data.periods.findIndex(p => p.start && !p.end);
+            if (openIdx >= 0) {
+                const prev = data.periods[openIdx];
+                // 이전 시작일로부터 하루 전을 종료일로
+                if (selectedDate > prev.start) {
+                    prev.end = addDays(selectedDate, -1);
+                }
+            }
+            data.periods.push({ start: selectedDate, end: null });
+            saveData();
+            renderCalendar();
+        });
+
+        // 생리 종료
+        document.getElementById('btnPeriodEnd').addEventListener('click', () => {
+            if (!selectedDate) return;
+            const openIdx = data.periods.findIndex(p => p.start && !p.end);
+            if (openIdx >= 0) {
+                if (selectedDate >= data.periods[openIdx].start) {
+                    data.periods[openIdx].end = selectedDate;
+                    saveData();
+                    renderCalendar();
+                } else {
+                    alert('종료일은 시작일 이후여야 합니다.');
+                }
+            }
+        });
+
+        // 성관계 기록
+        document.getElementById('btnSex').addEventListener('click', () => {
+            if (!selectedDate) return;
+            document.getElementById('sexModal').classList.add('active');
+        });
+        document.getElementById('btnSexCancel').addEventListener('click', () => {
+            document.getElementById('sexModal').classList.remove('active');
+        });
+        document.getElementById('btnSexConfirm').addEventListener('click', () => {
+            const method = document.getElementById('contraceptionMethod').value;
+            data.sexRecords.push({ date: selectedDate, method });
+            saveData();
+            document.getElementById('sexModal').classList.remove('active');
+            renderCalendar();
+        });
+
+        // 날짜 기록 삭제
+        document.getElementById('btnDeleteDay').addEventListener('click', () => {
+            if (!selectedDate) return;
+            // 해당 날짜 포함 생리 기록 삭제
+            data.periods = data.periods.filter(p => {
+                if (p.start === selectedDate) return false;
+                if (p.end === selectedDate) { p.end = addDays(selectedDate, -1); return true; }
+                return true;
+            });
+            data.sexRecords = data.sexRecords.filter(r => r.date !== selectedDate);
+            saveData();
+            renderCalendar();
+        });
+
+        // 주기 설정 변경
+        document.getElementById('cycleLength').addEventListener('change', (e) => {
+            data.cycleLength = parseInt(e.target.value) || 28;
+            saveData();
+            renderCalendar();
+        });
+        document.getElementById('periodDuration').addEventListener('change', (e) => {
+            data.periodDuration = parseInt(e.target.value) || 5;
+            saveData();
+            renderCalendar();
+        });
+
+        // 모달 바깥 클릭 시 닫기
+        document.getElementById('sexModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                e.currentTarget.classList.remove('active');
+            }
+        });
+
+        // --- 초기화 ---
+        const now = new Date();
+        currentYear = now.getFullYear();
+        currentMonth = now.getMonth();
+        document.getElementById('cycleLength').value = data.cycleLength || 28;
+        document.getElementById('periodDuration').value = data.periodDuration || 5;
+        renderCalendar();
+    })();
+    </script>
+</body>
+</html>
